@@ -1,0 +1,108 @@
+analysis: hh_bbtt
+type: nonresonant
+model:
+  parameters: [ kl, kt ]
+  param_dependent_bkg: false
+  input_file_pattern: dnn_Signal/dnn_output.root
+
+hist_bins: [ 0, 0.3, 1 ]
+signalFractionForRelevantBins: 0.2
+
+eras:
+  - Run3_2022EE
+
+channels:
+  - muTau
+  - eTau
+  - tauTau
+
+categories:
+  - res2b_cat3
+
+processes:
+  - process: data_obs
+    is_data: true
+    is_asimov_data: true
+
+  - process: ggF_HH
+    hist_name: ggF_HH
+    is_signal: true
+    scale: 31.05e-3 * 0.5824 * 0.0627 * 2
+
+  - TT
+  - DY
+  - VV
+  - ST
+  - QCD
+
+uncertainties:
+  - name: lumi_13p6TeV
+    type: lnN
+    value: 0.014
+
+  - name: CMS_pileup_2022EE
+    type: shape
+    eras: [ Run3_2022EE ]
+
+  - name: MuonID_TightID
+    type: shape
+  - name: MuonID_TightIDIso
+    type: shape
+  - name: EleID_TightIDIso
+    type: shape
+  - name: SingleEleTrg
+    type: shape
+  - name: SingleMuonTrg
+    type: shape
+  - name: TauID_DM0
+    type: shape
+  - name: TauID_DM1
+    type: shape
+  - name: TauES_DM0
+    type: shape
+  - name: TauES_DM1
+    type: shape
+  - name: JER
+    type: shape
+  - name: QCD_shape
+    type: shape
+    processes: [ QCD ]
+  - name: QCD_scale_TT
+    type: lnN
+    processes: [ TT ]
+    value: [ -0.036, 0.025 ]
+  - name: QCD_scale_DY
+    type: lnN
+    processes: [ DY ]
+    value: [ -0.011, 0.007 ]
+  - name: QCD_scale_ST
+    type: lnN
+    processes: [ ST ]
+    value: 0.022
+  - name: QCD_scale_VV
+    type: lnN
+    processes: [ VV ]
+    value: 0.005
+  - name: PDF_alphas
+    hasMultipleValues: true
+    type: lnN
+    value:
+      - { value: 0.025, processes: [ TT ], type: lnN }
+      - { value: 0.010, processes: [ DY ], type: lnN }
+      - { value: 0.027, processes: [ ST ], type: lnN }
+  - name: top_mass
+    hasMultipleValues: true
+    type: lnN
+    value:
+      - { value: [ -0.027, 0.028 ], processes: [ TT ], type: lnN }
+      - { value: [ -0.015, 0.015 ], processes: [ ST ], type: lnN }
+
+autolnNThr: 0.1
+asymlnNThr: 0.001
+ignorelnNThr: 0.001
+
+autoMCStats:
+  apply: true
+  threshold: 20
+  apply_to_signal: true
+  mode: 1 

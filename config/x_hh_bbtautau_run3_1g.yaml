@@ -1,0 +1,67 @@
+analysis: hh_bbtautau
+type: nonresonant                 
+model:
+  parameters: [ kl ]          
+  param_dependent_bkg: false
+  input_file_pattern: ${ERA}/merged/tautau_m_vis/tmp/all_histograms_tautau_m_vis_Central.root
+
+hist_bins: [ 50, 250, 350 ]
+signalFractionForRelevantBins: 0.20
+
+eras:
+  - Run3_2022EE
+
+channels:
+  - tauTau
+
+categories:
+  - res2b_cat3
+
+processes:
+  # Data / Asimov
+  - process: data_obs
+    is_data: true
+    is_asimov_data: true
+  # Signal: SM ggF-HH with variable κλ (kt = 1, c2 = 0)
+  - process: GluGlutoHHto2B2Tau_kl_${kl}p00_kt_1p00_c2_0p00
+    hist_name: GluGlutoHHto2B2Tau_kl_${kl}p00_kt_1p00_c2_0p00
+    param_values: [1]  # add more κλ values if needed
+    is_signal: true
+    #  σ(ggF-HH 13.6 TeV) ≈ 34.13 fb   × 2 × BR(bb) × BR(ττ)
+    scale: 2 * 6.272E-02 * 5.824E-01 * 34.13E-03
+  
+  # Main background (add more if required)
+  - TT
+
+# ------------------------------------------------------------------
+uncertainties:
+  # Integrated luminosity (Run-3 13.6 TeV)
+  - name: lumi_13TeV
+    type: lnN
+    value: 0.014                     # 1.4 %
+
+  # (Pile-up shapes commented out for now)
+  # - name: CMS_pileup_2022
+  #   type: shape
+  #   eras: [ Run3_2022 ]
+  # - name: CMS_pileup_2022EE
+  #   type: shape
+  #   eras: [ Run3_2022EE ]
+
+# ------------------------------------------------------------------
+# Combine helper thresholds & autoMCStats
+# ------------------------------------------------------------------
+autolnNThr: 0.1
+asymlnNThr: 0.001
+ignorelnNThr: 0.001
+
+autoMCStats:
+  apply: true
+  threshold: 20
+  apply_to_signal: true
+  mode: 1
+
+# python3 StatInference/dc_make/create_datacards.py \
+#   --input /eos/user/y/yumeng/HH_bbtautau_Run3/histograms/2022EERun3_20250327 \
+#   --output StatInference/config/datacards/output_cards_1g \
+#   --config StatInference/config/x_hh_bbtautau_run3_1g.yaml

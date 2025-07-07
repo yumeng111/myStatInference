@@ -1,0 +1,46 @@
+analysis: hh_bbtautau
+type: nonresonant
+model:
+  parameters: [ kl ]
+  param_dependent_bkg: false
+  input_file_pattern: ${ERA}/all_histograms_MT2_Central.root #${ERA}/shape_m${MX}.root
+  # hist_bins: [0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 500.0]
+  hist_bins: [10.0, 80.0, 160.0] #[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0, 190.0, 200.0, 210.0, 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0, 300.0, 310.0, 320.0, 330.0, 340.0, 350.0, 360.0, 370.0, 380.0, 390.0, 400.0, 410.0, 420.0, 430.0, 440.0, 450.0, 460.0, 470.0, 480.0, 490.0, 500.0]
+signalFractionForRelevantBins: 0.2
+eras:
+  - Run3_2022
+  - Run3_2022EE
+channels:
+  - tauTau
+categories:
+  # - OS_Iso/inclusive
+  - OS_Iso/res1b_cat3_masswindow
+  - OS_Iso/res2b_cat3_masswindow
+  - OS_Iso/boosted_baseline_cat3
+processes:
+  - process: data_obs
+    is_data: true
+    is_asimov_data: true
+  - process: GluGlutoHHto2B2Tau_kl_${kl}p00_kt_1p00_c2_0p00
+    hist_name: GluGlutoHHto2B2Tau_kl_${kl}p00_kt_1p00_c2_0p00
+    param_values: [1]
+    is_signal: true
+    scale: 2 * 6.272E-02 * 5.824E-01 * 34.13E-03
+  - TT
+  # - DY
+uncertainties:
+  - name: lumi_13TeV
+    type: lnN
+    value: 0.014 # https://twiki.cern.ch/twiki/bin/view/CMS/LumiRecommendationsRun3
+  # - name: CMS_pileup_2022
+  #   type: shape
+  #   eras:
+  #   - Run3_2022
+autolnNThr: 0.1
+asymlnNThr: 0.001
+ignorelnNThr: 0.001
+autoMCStats:
+  apply: true
+  threshold: 20
+  apply_to_signal: true
+  mode: 1

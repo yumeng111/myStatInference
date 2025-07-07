@@ -1,0 +1,149 @@
+analysis: hh_bbww
+type: resonant
+model:
+  parameters: [ MX ]
+  param_dependent_bkg: false
+  #input_file_pattern: dnn_M${MX}_Signal/dnn_M${MX}_Signal.root
+  input_file_pattern: dnn_M0_Signal/dnn_M0_Signal.root
+hist_bins: [ 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1 ]
+signalFractionForRelevantBins: 0.2
+eras:
+  # - Run3_2022
+  - Run3_2022EE
+channels:
+  - muMu
+  - eMu
+  - eE
+categories:
+  - res1b_Zveto_MbbSR
+  - res2b_Zveto_MbbSR
+processes:
+  - process: data_obs
+    is_data: true
+    is_asimov_data: true
+  - process: GluGlutoRadiontoHHto2B2Vto2B2L2Nu_M_${MX}
+    hist_name: GluGlutoRadiontoHHto2B2Vto2B2L2Nu_M_${MX}
+    param_values: [ 250, 260, 270, 280, 300, 350, 450, 550, 600, 650, 700, 800 ]
+    is_signal: true
+    # 125.0 H->bb BR 5.824e-01 https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
+    # 125.0 H->WW BR 2.137e-01 
+    # 125.0 H->ZZ BR 2.619e-02
+    # W->lv 10.86e-02 https://pdg.lbl.gov/2019/listings/rpp2019-list-w-boson.pdf
+    # W->hadrons BR 67.41e-02 (1 - 3 * 10.86e-02)
+    # Z->ll 3.3658e-02
+    # Z->invisible 20e-02
+    scale: 2 * 5.824e-01 * ( 2.137e-01 * 3 * 10.86e-02 * 3 * 10.86e-02 + 2 * 2.619E-02 * 3 * 3.3658e-02 * 20e-02)
+  - TT
+  - DY
+  - VV
+  - ST
+  # - W
+  # - Other
+uncertainties:
+  - name: lumi_13p6TeV
+    type: lnN
+    value: 0.014 # https://twiki.cern.ch/twiki/bin/view/CMS/LumiRecommendationsRun3
+
+
+  - name: MuonID_TightID
+    type: shape
+  - name: MuonID_TightIDIso
+    type: shape
+  - name: EleID_TightIDIso
+    type: shape
+
+  - name: SingleEleTrg
+    type: shape
+  - name: SingleMuonTrg
+    type: shape
+
+  - name: CMS_pileup_2022
+    type: shape
+    eras:
+    - Run3_2022
+  - name: CMS_pileup_2022EE
+    type: shape
+    eras:
+    - Run3_2022EE
+
+
+  - name: JER
+    type: shape
+  # - name: JES_total # As of May8 2025 the JES uncertainty causes a cpp seg fault
+  #   type: shape
+  - name: EleES
+    type: shape
+
+
+  # For multiple values, Konstantin says do [ down, up ]
+  - name: QCD_scale_TT
+    type: lnN
+    processes:
+    - TT
+    value: [ -0.036, 0.025 ] # TT XS uncertainty in percentage from xsec yaml
+    # TT:
+    # crossSec: '923.6'
+    # reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO#Updated_reference_cross_sections
+    # unc: +22.6 -33.4 (scale) +/-  22.8 (PDF alphas) -24.6 +25.4 (mass) (to be multiplied by the BR)
+
+  - name: QCD_scale_DY
+    type: lnN
+    processes:
+    - DY
+    value: [ -0.011, 0.007 ] # DY XS uncertainty in percentage from xsec yaml
+    # DY_NNLO_QCD+NLO_EW:
+    # crossSec: 2094.2 * 3
+    # reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/MATRIXCrossSectionsat13p6TeV
+    # unc: +0.7% - 1.1%, +- 1.0% PDF alphas
+
+  - name: QCD_scale_ST
+    type: lnN
+    processes:
+    - ST
+    value: [ -0.022, +0.022 ]
+    # Taken from ST to tW (largest uncertainty on XS) needs to be updated for each decay process later
+
+  - name: QCD_scale_VV
+    type: lnN
+    processes:
+    - VV
+    value: 0.005 # This was uncertainty from XSDB
+    
+  - name: PDF_alphas
+    hasMultipleValues: True
+    type: lnN
+    value:
+    - value: 0.025
+      type: lnN
+      processes:
+      - TT
+    - value: 0.01
+      type: lnN
+      processes:
+      - DY
+    - value: 0.027
+      type: lnN
+      processes:
+      - ST
+
+  - name: top_mass
+    hasMultipleValues: True
+    type: lnN
+    value: 
+    - value: [ -0.027, 0.028 ]
+      type: lnN
+      processes: 
+      - TT
+    - value: [ -0.015, 0.015 ] # Taken from tW for now (largest unc percentage)
+      type: lnN
+      processes:
+      - ST
+
+autolnNThr: 0.1
+asymlnNThr: 0.001
+ignorelnNThr: 0.001
+autoMCStats:
+  apply: true
+  threshold: 20
+  apply_to_signal: true
+  mode: 1
