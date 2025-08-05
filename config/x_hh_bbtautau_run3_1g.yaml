@@ -15,7 +15,7 @@ channels:
   - tauTau
 
 categories:
-  - res2b_cat3
+  - OS_Iso/res2b_cat3
 
 processes:
   # Data / Asimov
@@ -61,7 +61,7 @@ autoMCStats:
   apply_to_signal: true
   mode: 1
 
-# python3 StatInference/dc_make/create_datacards.py \
+# cmsEnv python3 StatInference/dc_make/create_datacards.py \
 #   --input /eos/user/y/yumeng/HH_bbtautau_Run3/histograms/2022EERun3_20250327 \
 #   --output StatInference/config/datacards/output_cards_1g \
 #   --config StatInference/config/x_hh_bbtautau_run3_1g.yaml
