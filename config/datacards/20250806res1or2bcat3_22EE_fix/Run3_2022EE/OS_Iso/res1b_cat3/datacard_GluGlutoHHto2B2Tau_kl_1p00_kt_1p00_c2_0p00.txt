@@ -1,0 +1,26 @@
+imax    3 number of bins
+jmax    3 number of processes minus 1
+kmax    * number of nuisance parameters
+--------------------------------------------------------------------------------
+shapes * Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3 ../../../GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00.root Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3/$PROCESS Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3/$PROCESS_$SYSTEMATIC
+shapes * Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3 ../../../GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00.root Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3/$PROCESS Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3/$PROCESS_$SYSTEMATIC
+shapes * Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3 ../../../GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00.root Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3/$PROCESS Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3/$PROCESS_$SYSTEMATIC
+--------------------------------------------------------------------------------
+bin          Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3 
+observation  1055.7814       1337.3297       72.9007         
+--------------------------------------------------------------------------------
+bin                       Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3 Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3 
+process                   GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00 TT              VV              ST              GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00 TT              VV              ST              GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00 TT              VV              ST              
+process                   0                                          1               2               3               0                                          1               2               3               0                                          1               2               3               
+rate                      4.44917e-05                                946.088         3.71026         105.983         0.000261773                                1190.73         5.00705         141.591         9.31844e-05                                63.8881         0.519366        8.49325         
+--------------------------------------------------------------------------------
+CMS_pileup_2022EE shape   -                                          1               1               1               -                                          1               1               1               -                                          1               1               1               
+EleID_TightIDIso  shape   -                                          1               1               1               -                                          1               1               1               -                                          1               1               1               
+MuonID_TightID    shape   -                                          1               1               1               -                                          1               1               1               -                                          1               1               1               
+MuonID_TightIDIso shape   -                                          1               1               1               -                                          1               1               1               -                                          1               1               1               
+SingleEleTrg      shape   -                                          1               1               1               -                                          1               1               1               -                                          1               1               1               
+SingleMuonTrg     shape   -                                          1               1               1               -                                          1               1               1               -                                          1               1               1               
+lumi_13TeV        lnN     -                                          1.014           1.014           1.014           -                                          1.014           1.014           1.014           -                                          1.014           1.014           1.014           
+Run3_2022EE_hh_bbtautau_eTau_OS_Iso/res1b_cat3 autoMCStats 20 1 1
+Run3_2022EE_hh_bbtautau_muTau_OS_Iso/res1b_cat3 autoMCStats 20 1 1
+Run3_2022EE_hh_bbtautau_tauTau_OS_Iso/res1b_cat3 autoMCStats 20 1 1

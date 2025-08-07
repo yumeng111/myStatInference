@@ -1,0 +1,86 @@
+analysis: hh_bbtautau
+type: nonresonant                 
+model:
+  #parameters: [ kl ]
+  parameters: [ ]          
+  param_dependent_bkg: false
+  input_file_pattern: ${ERA}/merged/tautau_m_vis/tmp/all_histograms_tautau_m_vis_Central.root
+
+hist_bins: [ 250, 300, 350, 400, 450, 500, 600, 1000 ]
+signalFractionForRelevantBins: 0.20
+
+eras:
+  - Run3_2022EE
+
+channels:
+  - eTau
+  - muTau
+  - tauTau
+
+categories:
+  - OS_Iso/res2b_cat3
+  - OS_Iso/res1b_cat3
+
+processes:
+  # Data / Asimov
+  - process: data_obs
+    is_data: true
+    is_asimov_data: true
+  # Signal: SM ggF-HH with variable κl (kt = 1, c2 = 0)
+  # - process: GluGlutoHHto2B2Tau_kl_${kl}p00_kt_1p00_c2_0p00
+  #   hist_name: GluGlutoHHto2B2Tau_kl_${kl}p00_kt_1p00_c2_0p00
+  #   #param_values: [1]  # add more κλ values if needed
+  - GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00
+    hist_name: GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00
+    is_signal: true
+    #  sigma(ggF-HH 13.6 TeV) ~ 34.13 fb   × 2 × BR(bb) × BR(tautau)
+    scale: 2 * 6.272E-02 * 5.824E-01 * 34.13E-03
+  
+  # Main background
+  - process: TT
+  #- process: DY
+    #allow_negative_bins_within_error: True
+  - process: VV
+  - process: ST
+
+# ------------------------------------------------------------------
+uncertainties:
+  # Integrated luminosity (Run-3 13.6 TeV)
+  - name: lumi_13TeV
+    type: lnN
+    value: 0.014  # https://twiki.cern.ch/twiki/bin/view/CMS/LumiRecommendationsRun3
+
+  - name: MuonID_TightID
+    type: shape
+  - name: MuonID_TightIDIso
+    type: shape
+  - name: EleID_TightIDIso
+    type: shape
+
+  - name: SingleEleTrg
+    type: shape
+  - name: SingleMuonTrg
+    type: shape
+
+  - name: CMS_pileup_2022EE
+    type: shape
+    eras:
+    - Run3_2022EE
+# ------------------------------------------------------------------
+# Combine helper thresholds & autoMCStats
+# ------------------------------------------------------------------
+autolnNThr: 0.1
+asymlnNThr: 0.001
+ignorelnNThr: 0.001
+
+autoMCStats:
+  apply: true
+  threshold: 20
+  apply_to_signal: true
+  mode: 1
+
+# cmsEnv python3 StatInference/dc_make/create_datacards.py \
+#   --input /eos/user/y/yumeng/HH_bbtautau_Run3/histograms/2022EERun3_20250327 \
+#   --output StatInference/config/datacards/20250806res1or2bcat3_22EE_fix \
+#   --config StatInference/config/yaml_folder/20250806res1or2bcat3_22EE_fix.yaml
+  
