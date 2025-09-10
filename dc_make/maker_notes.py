@@ -1,7 +1,6 @@
 import itertools
 import math
 import os
-import re
 import yaml
 
 #yumeng
@@ -20,7 +19,6 @@ class DatacardMaker:
     #yumeng: central CH object
     self.cb = CombineHarvester()
 
-    #yumeng: Loads YAML into cfg, extract objects
     self.input_path = input_path
     with open(cfg_file, 'r') as f:
       cfg = yaml.safe_load(f)
@@ -31,22 +29,21 @@ class DatacardMaker:
     self.categories = cfg["categories"]
     self.signalFractionForRelevantBins = cfg['signalFractionForRelevantBins']
 
-    # yumeng: name each bin as "<era>_<analysis>_<channel>_<category>", caches them in self.bins
+    # name each bin as "<era>_<analysis>_<channel>_<category>"
     self.bins = []
     for era, channel, cat in self.ECC():
       bin = self.getBin(era, channel, cat, return_index=False)
       self.bins.append(bin)
 
-    #yumeng:Instantiate model, encapsulate the model parameters(eg parameters, param_dependent_bkg...)
     self.model = Model.fromConfig(cfg["model"])
     
-    # yumeng: Build process list (data, bkgs, signals)
+    # Build process list (data, bkgs, signals)
     self.param_bins = {}
     self.processes = {}
     data_process = None
     has_signal = False
     for process in cfg["processes"]:
-      #suspicious why mass?: for signal dictionary: scan diff param values from cmd line without modify yaml
+      #for signal dictionary: scan diff param values from cmd line without modify yaml
       if (type(process) != str) and process.get('is_signal', False):
         if param_values is not None:
           print(f"Overwriting signal masses to {param_values}")
@@ -54,6 +51,7 @@ class DatacardMaker:
       
       
       #Yumeng: Expand (+ possibly split into subprocesses) and register processes (for top level process and keep track of subprocesses)
+      #fromConfig will return "model" actually the entry argument
       new_processes = Process.fromConfig(process, self.model)
       for process in new_processes:
         if process.name in self.processes:
@@ -70,14 +68,9 @@ class DatacardMaker:
           has_signal = True
           param_bin = self.model.paramStr(process.params)
           # yumeng: keep a unique label for each parameter point (param_str)
-          # if param_bin in self.param_bins:
-          #   raise RuntimeError(f"Signal process with parameters {param_bin} already exists")
-          # self.param_bins[param_bin] = process.params
-          # change:Allow multiple signals to share same parameter point. will have one CH/param bin per (era, analysis, channel, category), 
-          #and separate processes (bin) living inside the same CH/param bin.
-          #dict.setdefault(key, default) python built-in function: If key not in dict, inserts key with given default value.i
-          #and if yes, returns existing value and does not overwrite.
-          self.param_bins.setdefault(param_bin, process.params)
+          if param_bin in self.param_bins:
+            raise RuntimeError(f"Signal process with parameters {param_bin} already exists")
+          self.param_bins[param_bin] = process.params
     if data_process is None:
       raise RuntimeError("No data process defined")
     if not has_signal:
@@ -152,14 +145,6 @@ class DatacardMaker:
   def getMultiValueLnUnc(self,unc,unc_name, process, era, channel, category, model_params):#, unc_name=None, unc_scale=None)
     file_name, file = self.getInputFile(era, model_params)
     hist_name = f"{channel}/{category}/{process.hist_name}"
-    #yumeng: handles MultiValueLnNUncertainty where a single “process” in datacard is sum of subprocess histograms with different lnN numbers.
-    #Flow:
-    #If uncertainty object has a direct value for full process, return it.
-    #Else, if process has subprocesses, it:
-    ##Opens each subprocess histogram to get its yield.
-    ##Looks up that subprocess’s lnN value (could be dict with Up/Down).
-    ##Returns a yield-weighted average of Up and Down across subprocesses.
-    #This express single lnN lines for a merged process that is made of heterogeneous components with different lnN magnitudes.
     if unc.getUncertaintyForProcess(process.name) != None:
       return unc.getUncertaintyForProcess(process.name)
     elif process.subprocesses:
@@ -194,11 +179,9 @@ class DatacardMaker:
   # (3)yumeng: core, how histograms are extracted and got the shape for a given process, era, channel, category, and model parameters
   def getShape(self, process, era, channel, category, model_params, unc_name=None, unc_scale=None):
     file_name, file = self.getInputFile(era, model_params)
-    #change: drop signal_processes_histograms
+    signal_processes_histograms = []
     #yumeng: (a) Pick & cache by a stable key
-    # change: Add parameter tag to avoid cache key collisions across parameter points, eg kl_2_k2v_1
-    param_tag = None if model_params is None else self.model.paramStr(model_params)
-    key = (file_name, process.name, era, channel, category, unc_name, unc_scale, param_tag)
+    key = (file_name, process.name, era, channel, category, unc_name, unc_scale)
     if key not in self.shapes:
       # yumeng: (b) Asimov data is handled specially = sum of background shapes, because?there is no file.Get for a "data" histogram
       if process.is_data and (unc_name is not None or unc_scale is not None):
@@ -234,9 +217,6 @@ class DatacardMaker:
             # yumeng: rebin
             hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, subhist))
         else:
-          # # change: Append uncertainty suffix for non-subprocess shapes
-          # if unc_name and unc_scale:
-          #   hist_name += f"_{unc_name}{unc_scale}"
           hist = file.Get(hist_name)
           if hist == None:
             raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
@@ -256,29 +236,14 @@ class DatacardMaker:
         hist.SetDirectory(0)
         if process.scale != 1:
           hist.Scale(process.scale)
-        #yumeng: Signal, just append to a local list (used to decide "relevant bins").
+        #yumeng: Signal, just append to a local list (used to decide “relevant bins”).
         if process.is_signal:
-            # change: Always store signal histogram under nominal key for consistent relevant bins calculation
-            nominal_signal_key = (file_name, "signals", era, channel, category, None, None)
-            self.shapes.setdefault(nominal_signal_key, []).append(hist)
-        #yumeng: 
-        #explain: it's doing: When processing a signal process: stores signal histogram in special cache location: 
-        #Cache key: (file_name, "signals", era, channel, category, None, None) - note "signals" string and None, None for uncertainty parameters
-        #Purpose: This creates collection of all signal histograms for a given (file, era, channel, category) combination
-        #Why it's needed: Later, when processing background processes, code needs to know which bins are "relevant" (where signal is significant)
-        #to decide how to handle negative bins:
-        #summary: 1) Signal processing: Store all signal histograms in special cache
-        #2) Background processing: Retrieve those signal histograms to calculate which bins are "relevant" (where signal fraction > threshold)
-        #3) Negative bin remediation: Only apply strict negative bin handling to "relevant" bins where signal matters
-
-        #Background, compute a relevant-bins mask (bins where signal fraction exceeds a threshold), 
+            signal_processes_histograms.append(hist)
+        #yumeng: Background, compute a relevant-bins mask (bins where signal fraction exceeds a threshold), 
         #then run negative-bin remediation (clip/smooth/merge per resolveNegativeBins policy).
         #If remediation fails, prints edges/values/errors and throws to force a fix upstream.
         #idea: only care about negative bins where signal actually matters (by signalFractionForRelevantBins threshold). reduces false alarms in empty tails.
         else:
-          # change: Always use nominal signals for relevant bins calculation, regardless of uncertainty
-          nominal_signal_key = (file_name, "signals", era, channel, category, None, None)
-          signal_processes_histograms = self.shapes.get(nominal_signal_key, [])
           relevant_bins = getRelevantBins(era, channel, category,signal_processes_histograms,self.signalFractionForRelevantBins,unc_name, unc_scale, model_params)
           solution = resolveNegativeBins(hist,relevant_bins=relevant_bins, allow_zero_integral=process.allow_zero_integral, allow_negative_bins_within_error=process.allow_negative_bins_within_error, max_n_sigma_for_negative_bins=process.max_n_sigma_for_negative_bins, allow_negative_integral=process.allow_negative_integral)
 
@@ -302,13 +267,11 @@ class DatacardMaker:
     bin_idx, bin_name = self.getBin(era, channel, category)
     process = self.processes[proc]
     #suspicious, AddObservations or AddProcesses declare bins and process roster to CH.
-    # change: Modified add function to accept process_name parameter for unique signal names
-    def add(model_params, param_str, process_name):
+    def add(model_params, param_str):
       if process.is_data:
         self.cb.AddObservations([param_str], [self.analysis], [era], [channel], [(bin_idx, bin_name)])
       else:
-        #change:
-        self.cb.AddProcesses([param_str], [self.analysis], [era], [channel], [process_name], [(bin_idx, bin_name)], process.is_signal)
+        self.cb.AddProcesses([param_str], [self.analysis], [era], [channel], [proc], [(bin_idx, bin_name)], process.is_signal)
 
       # yumeng: Fetch nominal shape (calls routine getShape)
       shape = self.getShape(process, era, channel, category, model_params)
@@ -321,32 +284,26 @@ class DatacardMaker:
           raise RuntimeError("Shape already set")
         p.set_shape(shape, True) # yumeng: << attaches TH1 as nominal template for that (param_str, process, bin).
         shape_set = True
-      #change:
-      cb_copy = self.cbCopy(param_str, process_name, era, channel, category)
+      cb_copy = self.cbCopy(param_str, proc, era, channel, category)
       if process.is_data:
         cb_copy.ForEachObs(setShape)
       else:
         cb_copy.ForEachProc(setShape)
 
     # yumeng: Suspicious: For signals: iterate over each parameter point (mass = param_str)
-    # change: Modified signal processing to create unique process names and use "*" mass
     if process.is_signal:
       model_params = process.params
       param_str = self.model.paramStr(model_params)
-      # change: Use the process name as-is since it already includes parameters from Process.fromConfig, eg ggHH_kl_1_kt_1_hbbhtt
-      unique_proc_name = proc  # Process name already includes parameters
-      add(model_params, "*", unique_proc_name)  # Use "*" mass for all processes
+      add(model_params, param_str)
     elif self.model.param_dependent_bkg:
       for signal_proc in self.processes.values():
         if signal_proc.is_signal:
           model_params = signal_proc.params
           param_str = self.model.paramStr(model_params) # yumeng: # e.g. "kl_1__k2v_0"
-          #change:
-          add(model_params, "*", proc)  # Use "*" mass for all processes
+          add(model_params, param_str)
     else:
       # yumeng: Backgrounds (and data) are stored under '*' unless bkg depends on params
-      #change:
-      add(None, "*", proc)
+      add(None, "*")
 
   #(5)yumeng:addUncertainties (including shape systematics)
   def addUncertainty(self, unc_name):
@@ -364,13 +321,6 @@ class DatacardMaker:
       if not uncApplies: continue
       if not process.hasCompatibleModelParams(model_params, self.model.param_dependent_bkg): continue
 
-      # change: Determine the actual process name used in CombineHarvester. * for mass
-      if process.is_signal:
-        actual_proc_name = proc  # Process name already includes parameters from Process.fromConfig
-        actual_param_str = "*"
-      else:
-        actual_proc_name = proc
-        actual_param_str = "*"
 
       nominal_shape = None
       shapes = {}
@@ -390,8 +340,7 @@ class DatacardMaker:
         continue
       systMap = unc_to_apply.valueToMap(unc_value) if isMVLnUnc else unc_to_apply.valueToMap()
       # yumeng: Build a SystMap (lnN/shape/asym, possibly multi-value per subprocess)
-      # change: Use actual process name and mass parameter
-      cb_copy = self.cbCopy(actual_param_str, actual_proc_name, era, channel, category)
+      cb_copy = self.cbCopy(param_str, proc, era, channel, category)
       cb_copy.AddSyst(self.cb, unc_name, unc_to_apply.type.name, systMap)
       if unc_to_apply.type == UncertaintyType.shape:
         shape_set = False
@@ -403,54 +352,50 @@ class DatacardMaker:
           # yumeng: syst.set_shapes(up, down, nominal)
           syst.set_shapes(shapes[UncertaintyScale.Up], shapes[UncertaintyScale.Down], nominal_shape)
           shape_set = True
-        # change: Use actual process name and mass parameter
-        cb_copy = self.cbCopy(actual_param_str, actual_proc_name, era, channel, category).syst_name([unc_name])
+        cb_copy = self.cbCopy(param_str, proc, era, channel, category).syst_name([unc_name])
         cb_copy.ForEachSyst(setShape)
 
   #(6)yumeng:writeDatacards (writes datacards and shape files)
   def writeDatacards(self, output):
     os.makedirs(output, exist_ok=True)
-    
-    # change: Simplified process collection - get all process names from CombineHarvester object
-    # Get all process names from the CombineHarvester object (these now include unique signal names)
-    all_process_names = set()
-    for proc in self.cb.cp().process_set():
-      all_process_names.add(proc)
-    
-    # change: Create separate datacards for each channel-category combination
-    def slug(s: str) -> str:
-      # lower, turn slashes into underscores, and collapse any weird chars to "_"
-      s = s.lower().replace('/', '_')
-      return re.sub(r'[^a-z0-9_.-]+', '_', s)
-    
-    for subera in self.eras:
-      for subchannel in self.channels:
-        for subcat in self.categories:
-          channel_lower = subchannel.lower()               # eTau -> etau
-          cat_slug = slug(subcat)                          # OS_Iso/res2b_cat3 -> os_iso_res2b_cat3
-          dc_name = f"{channel_lower}_{cat_slug}"          # etau_os_iso_res2b_cat3
+    background_names = [ proc_name for proc_name, proc in self.processes.items() if proc.is_background ]
+    for proc_name, process in self.processes.items():
+      if not process.is_signal: continue
+      
+      # yumeng:suspicious, Per signal point: list of masses (param labels)
+      processes = [proc_name] + background_names
+      param_list = [ self.model.paramStr(process.params) ]
+      if not self.model.param_dependent_bkg:
+        param_list.append('*') # yumeng:pull bkgs from the '*' mass-slice
+      dc_file = os.path.join(output, f"datacard_{proc_name}.txt")
+      shape_file = os.path.join(output, f"{proc_name}.root")
 
-          # Output dir per (era, combo)
-          tmp_output = os.path.join(output, subera, dc_name)
+      for subera in self.eras:
+        for subchannel in self.channels:
+          tmp_output = os.path.join(output, subera, subchannel)
           os.makedirs(tmp_output, exist_ok=True)
+          tmp_dc_file = os.path.join(tmp_output, f"datacard_{proc_name}.txt")
+          #tmp_shape_file = os.path.join(tmp_output, f"{proc_name}.root")
+          #Setting the temp shape file to the same location as the total shape file will let the datacard
+          #Point to the total shape file, reducing the number of copies of the shape files
+          tmp_shape_file = shape_file
+          self.cb.cp().era([subera]).channel([subchannel]).mass(param_list).process(processes).WriteDatacard(tmp_dc_file, tmp_shape_file)
 
-          # Files
-          tmp_dc_file = os.path.join(tmp_output, f"datacard_{dc_name}.txt")
-          tmp_shape_file = os.path.join(tmp_output, f"shapes_{dc_name}.root")
+        for subcat in self.categories:
+          binset = [ self.getBin(subera, ch, subcat, return_index=False) for ch in self.channels ]
+          tmp_output = output+f'/{subera}/{subcat}/'
+          os.makedirs(tmp_output, exist_ok=True)
+          tmp_dc_file = os.path.join(tmp_output, f"datacard_{proc_name}.txt")
+          #tmp_shape_file = os.path.join(tmp_output, f"{proc_name}.root")
+          tmp_shape_file = shape_file
+          self.cb.cp().era([subera]).bin(binset).mass(param_list).process(processes).WriteDatacard(tmp_dc_file, tmp_shape_file)
 
-          # Select exactly this bin (real CH name with slash is fine)
-          bin_name = self.getBin(subera, subchannel, subcat, return_index=False)
-          self.cb.cp().era([subera]).channel([subchannel]).bin([bin_name]).mass(['*']).WriteDatacard(
-              tmp_dc_file, tmp_shape_file
-          )
-
-    # change: Write main combined datacard with all signals and backgrounds
-    # Write the main combined datacard (all eras/channels/categories)
-    dc_file = os.path.join(output, "datacard_combined_signals.txt")
-    # change: Create main combined shape file
-    main_shape_file = os.path.join(output, "combined_signals_all.root")
-    #change:
-    self.cb.cp().mass(['*']).WriteDatacard(dc_file, main_shape_file)
+      #Creating the total shape file at the end will overwrite the previous "temporary" shape files
+      #yumeng: (a) suspicious, write a combined card (all eras/channels/categories you kept in cb)
+      #     filtered by the 'mass' slice(s) we want:
+      self.cb.cp().mass(param_list).process(processes).WriteDatacard(dc_file, shape_file)
+      # yumeng: (b) (optional) also fan out per-era/per-channel and per-category cards
+      #     using filters like: .era([subera]).channel([subchannel]).bin([...])
 
 
 
