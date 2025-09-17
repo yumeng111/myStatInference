@@ -40,16 +40,9 @@ class DatacardMaker:
     #yumeng:Instantiate model, encapsulate the model parameters(eg parameters, param_dependent_bkg...)
     self.model = Model.fromConfig(cfg["model"])
     
-    # change: Detect mode once
-    ps = getattr(self.model, "parameters", [])
-    self.is_resonant = (len(ps) == 1 and ps[0] == "mass")
-    
     # yumeng: Build process list (data, bkgs, signals)
     self.param_bins = {}
     self.processes = {}
-    # change: Store per-(mass, process) parameters so shapes can be looked up correctly
-    self.param_of = {}  # key: (mass_str, process_name) -> full params dict
-    self.base_of = {}   # actual_proc_name -> base_process_name
     data_process = None
     has_signal = False
     for process in cfg["processes"]:
@@ -129,9 +122,9 @@ class DatacardMaker:
       return index
     return (index, name)
 
-  def cbCopy(self, mass_str, process, era, channel, category):
-    _, bin_name = self.getBin(era, channel, category)
-    return self.cb.cp().mass([mass_str]).process([process]).bin([bin_name])
+  def cbCopy(self, param_str, process, era, channel, category):
+    bin_idx, bin_name = self.getBin(era, channel, category)
+    return self.cb.cp().mass([param_str]).process([process]).bin([bin_name])
 
   def ECC(self):
     return itertools.product(self.eras, self.channels, self.categories)
@@ -143,24 +136,10 @@ class DatacardMaker:
     return itertools.product(self.processes.keys(), param_bins, self.eras, self.channels, self.categories)
 
   #(2)yumeng:Get the input file (Each file is opened once and cached in self.input_files) for a given era and model parameters
-  #change
-  def getInputFile(self, era, model_params, unc_name=None, unc_scale=None):
+  def getInputFile(self, era, model_params):
     #suspicious
     #yumeng: builds a file name using the configured pattern and the parameter values (e.g., encodes kl,k2v in the file name)
     file_name = self.model.getInputFileName(era, model_params)
-    
-    # change: Handle uncertainty-specific files
-    if unc_name and unc_scale:
-      # For uncertainty variations, look for separate files like:
-      # all_histograms_bbtautau_mass_MuonID_TightID.root
-      # all_histograms_bbtautau_mass_HLT_singleEle.root
-      unc_file_name = file_name.replace("_Central.root", f"_{unc_name}.root")
-      if os.path.exists(os.path.join(self.input_path, unc_file_name)):
-        file_name = unc_file_name
-        print(f"DEBUG: Using uncertainty file: {file_name}")
-      else:
-        print(f"DEBUG: Uncertainty file not found, using Central file: {file_name}")
-    
     if file_name not in self.input_files:
       full_file_name = os.path.join(self.input_path, file_name)
       file = ROOT.TFile.Open(full_file_name, "READ")
@@ -214,8 +193,7 @@ class DatacardMaker:
 
   # (3)yumeng: core, how histograms are extracted and got the shape for a given process, era, channel, category, and model parameters
   def getShape(self, process, era, channel, category, model_params, unc_name=None, unc_scale=None):
-    #change
-    file_name, file = self.getInputFile(era, model_params, unc_name, unc_scale)
+    file_name, file = self.getInputFile(era, model_params)
     #change: drop signal_processes_histograms
     #yumeng: (a) Pick & cache by a stable key
     # change: Add parameter tag to avoid cache key collisions across parameter points, eg kl_2_k2v_1
@@ -241,37 +219,27 @@ class DatacardMaker:
         # base: "<channel>/<category>/<process.hist_name or subprocess>"
         # if it's a shape uncertainty: append "_{unc_name}{Up/Down}"
         
-        # change: Keep category fixed; append the systematic to the process/subprocess name
-        base = f"{channel}/{category}/"
-        
+        # which histogram name to look up in the ROOT file
+        hist_name = f"{channel}/{category}/{process.hist_name}"
         hists = []
         if process.subprocesses:
+          # yumeng:Collect and sum sub-hists
           for subp in process.subprocesses:
-            #change:
-            name = base + subp
+            hist_name = f"{channel}/{category}/{subp}"
             if unc_name and unc_scale:
-              name += f"_{unc_name}_{unc_scale}"
-            subhist = file.Get(name)
-            if subhist is None:
-              raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
+              hist_name += f"_{unc_name}{unc_scale}"
+            subhist = file.Get(hist_name)
+            if subhist == None:
+              raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
+            # yumeng: rebin
             hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, subhist))
         else:
-          #change
-          name = base + process.hist_name
-          if unc_name and unc_scale:
-            name += f"_{unc_name}_{unc_scale}"
-          #change: add debug
-          print(f"DEBUG: Looking for histogram '{name}' in file '{file.GetName()}'")
-          hist = file.Get(name)
-          #change: add debug
-          print(f"DEBUG: Histogram result: {hist}")
-          if hist is None:
-            #change: add debug
-            print(f"DEBUG: Histogram not found. Available keys in file:")
-            file.ls()
-            raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
-          #change: add debug
-          print(f"DEBUG: Histogram found, applying binning...")
+          # # change: Append uncertainty suffix for non-subprocess shapes
+          # if unc_name and unc_scale:
+          #   hist_name += f"_{unc_name}{unc_scale}"
+          hist = file.Get(hist_name)
+          if hist == None:
+            raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
           hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, hist))
         if len(hists) == 0:
           raise RuntimeError(f"hist list is empty for file {file.GetName()}")
@@ -290,8 +258,8 @@ class DatacardMaker:
           hist.Scale(process.scale)
         #yumeng: Signal, just append to a local list (used to decide "relevant bins").
         if process.is_signal:
-            # change: Relevant-bins cache should not depend on file name
-            nominal_signal_key = ("signals", era, channel, category)
+            # change: Always store signal histogram under nominal key for consistent relevant bins calculation
+            nominal_signal_key = (file_name, "signals", era, channel, category, None, None)
             self.shapes.setdefault(nominal_signal_key, []).append(hist)
         #yumeng: 
         #explain: it's doing: When processing a signal process: stores signal histogram in special cache location: 
@@ -309,7 +277,7 @@ class DatacardMaker:
         #idea: only care about negative bins where signal actually matters (by signalFractionForRelevantBins threshold). reduces false alarms in empty tails.
         else:
           # change: Always use nominal signals for relevant bins calculation, regardless of uncertainty
-          nominal_signal_key = ("signals", era, channel, category)
+          nominal_signal_key = (file_name, "signals", era, channel, category, None, None)
           signal_processes_histograms = self.shapes.get(nominal_signal_key, [])
           relevant_bins = getRelevantBins(era, channel, category,signal_processes_histograms,self.signalFractionForRelevantBins,unc_name, unc_scale, model_params)
           solution = resolveNegativeBins(hist,relevant_bins=relevant_bins, allow_zero_integral=process.allow_zero_integral, allow_negative_bins_within_error=process.allow_negative_bins_within_error, max_n_sigma_for_negative_bins=process.max_n_sigma_for_negative_bins, allow_negative_integral=process.allow_negative_integral)
@@ -322,11 +290,7 @@ class DatacardMaker:
             print(f'bins_edges: [ {", ".join(bins_edges)} ]')
             print(f'bin_values: [ {", ".join(bin_values)} ]')
             print(f'bin_errors: [ {", ".join(bin_errors)} ]')
-            #change
-            raise RuntimeError(
-                f"Negative bins found in histogram for {channel}/{category}/{process.name}"
-                + (f" (syst {unc_name}{unc_scale})" if unc_name and unc_scale else "")
-            )
+            raise RuntimeError(f"Negative bins found in histogram {hist_name}")
       self.shapes[key] = hist
     return self.shapes[key]
 
@@ -339,12 +303,12 @@ class DatacardMaker:
     process = self.processes[proc]
     #suspicious, AddObservations or AddProcesses declare bins and process roster to CH.
     # change: Modified add function to accept process_name parameter for unique signal names
-    def add(model_params, mass_str, process_name):
+    def add(model_params, param_str, process_name):
       if process.is_data:
-        self.cb.AddObservations([mass_str], [self.analysis], [era], [channel], [(bin_idx, bin_name)])
+        self.cb.AddObservations([param_str], [self.analysis], [era], [channel], [(bin_idx, bin_name)])
       else:
         #change:
-        self.cb.AddProcesses([mass_str], [self.analysis], [era], [channel], [process_name], [(bin_idx, bin_name)], process.is_signal)
+        self.cb.AddProcesses([param_str], [self.analysis], [era], [channel], [process_name], [(bin_idx, bin_name)], process.is_signal)
 
       # yumeng: Fetch nominal shape (calls routine getShape)
       shape = self.getShape(process, era, channel, category, model_params)
@@ -355,46 +319,30 @@ class DatacardMaker:
         print(f"Setting shape for {p}")
         if shape_set:
           raise RuntimeError("Shape already set")
-        p.set_shape(shape, True) # yumeng: << attaches TH1 as nominal template for that (mass_str, process, bin).
+        p.set_shape(shape, True) # yumeng: << attaches TH1 as nominal template for that (param_str, process, bin).
         shape_set = True
       #change:
-      cb_copy = self.cbCopy(mass_str, process_name, era, channel, category)
+      cb_copy = self.cbCopy(param_str, process_name, era, channel, category)
       if process.is_data:
         cb_copy.ForEachObs(setShape)
       else:
         cb_copy.ForEachProc(setShape)
 
     # yumeng: Suspicious: For signals: iterate over each parameter point (mass = param_str)
-    # change: Signal registration policy
+    # change: Modified signal processing to create unique process names and use "*" mass
     if process.is_signal:
-      params = process.params
-      if self.is_resonant:
-        # change: Resonant: .mass = "<mass>", process name stays clean (e.g. XToHH)
-        mass_str = str(int(params['mass']))
-        actual_proc_name = process.name
-      else:
-        # yumeng: Non-resonant: .mass = "*" and append EFT tag to the process name (e.g. ggHH_kl1p0_kt1p0)
-        eft_tag = self.model.paramStr(params)   # must ignore 'mass'
-        mass_str = "*"
-        actual_proc_name = f"{process.name}_{eft_tag}"
-
-      # yumeng: Remember this parameter point for later (shape & syst lookup):
-      self.param_of[(mass_str, actual_proc_name)] = params
-      #change: add base
-      self.base_of[actual_proc_name] = process.name
-      # yumeng: Register with CH and set shapes using cbCopy(mass_str, actual_proc_name, ...)
-      add(params, mass_str, actual_proc_name)
+      model_params = process.params
+      param_str = self.model.paramStr(model_params)
+      # change: Use the process name as-is since it already includes parameters from Process.fromConfig, eg ggHH_kl_1_kt_1_hbbhtt
+      unique_proc_name = proc  # Process name already includes parameters
+      add(model_params, "*", unique_proc_name)  # Use "*" mass for all processes
     elif self.model.param_dependent_bkg:
       for signal_proc in self.processes.values():
         if signal_proc.is_signal:
-          # change: Get model parameters for current parameter point
-          params = signal_proc.params
-          mass_str = str(int(params['mass'])) if self.is_resonant else "*"
-          actual_proc_name = proc
-          # change: record for uncertainties:
-          self.param_of[(mass_str, actual_proc_name)] = params
-          self.base_of[actual_proc_name] = proc
-          add(params, mass_str, proc)
+          model_params = signal_proc.params
+          param_str = self.model.paramStr(model_params) # yumeng: # e.g. "kl_1__k2v_0"
+          #change:
+          add(model_params, "*", proc)  # Use "*" mass for all processes
     else:
       # yumeng: Backgrounds (and data) are stored under '*' unless bkg depends on params
       #change:
@@ -404,73 +352,60 @@ class DatacardMaker:
   def addUncertainty(self, unc_name):
     unc = self.uncertainties[unc_name]
     isMVLnUnc = isinstance(unc, MultiValueLnNUncertainty)
-    
-    # change: Make sure param-independent backgrounds also get uncertainties
-    items = list(self.param_of.items())
-    if not self.model.param_dependent_bkg:
-      for pname, p in self.processes.items():
-        if p.is_background:
-          items.append((( "*", pname ), None))  # params=None
+    for proc, param_str, era, channel, category in self.PPECC():
+      process = self.processes[proc]
+      if process.is_data: continue
+      # yumeng: Get model parameters for current parameter point (dict of kl,k2v for signals; None for '*')
+      model_params = self.param_bins.get(param_str, None)
+      if isMVLnUnc:
+        unc_value = self.getMultiValueLnUnc(unc,unc_name,process, era, channel, category, model_params)#, unc_name=None, unc_scale=None
 
-    for (mass_str, process_name), params in items:
-      for era, channel, category in self.ECC():
-        #change: fall back for resonant
-        base_name = self.base_of.get(process_name, process_name)   # fall back for resonant
-        process = self.processes[base_name]
-        if process.is_data: continue
-        
-        # change: Get model parameters from param_of mapping
-        model_params = params
-        if isMVLnUnc:
-          unc_value = self.getMultiValueLnUnc(unc,unc_name,process, era, channel, category, model_params)
+      uncApplies = unc_value != None if isMVLnUnc else unc.appliesTo(process, era, channel, category)
+      if not uncApplies: continue
+      if not process.hasCompatibleModelParams(model_params, self.model.param_dependent_bkg): continue
 
-        uncApplies = unc_value != None if isMVLnUnc else unc.appliesTo(process, era, channel, category)
-        if not uncApplies: continue
-        if not process.hasCompatibleModelParams(model_params, self.model.param_dependent_bkg): continue
+      # change: Determine the actual process name used in CombineHarvester. * for mass
+      if process.is_signal:
+        actual_proc_name = proc  # Process name already includes parameters from Process.fromConfig
+        actual_param_str = "*"
+      else:
+        actual_proc_name = proc
+        actual_param_str = "*"
 
-        # change: Use mass_str and process_name from param_of mapping
-        actual_proc_name = process_name
-        actual_mass_str = mass_str
-
-        nominal_shape = None
-        shapes = {}
-        if unc.needShapes:
-          # change: Use model_params from param_of mapping
-          # yumeng: Prepare nominal, up, down shapes and attach them
-          # For lnN style, just registers numbers.
-          #For shape style, calls getShape(..., unc_name, Up/Down) to fetch shifted TH1s and sets them on CH systematic with set_shapes(up, down, nominal).
-          try:
-            nominal_shape = self.getShape(process, era, channel, category, model_params)
-            for unc_scale in [ UncertaintyScale.Up, UncertaintyScale.Down ]:
-              shapes[unc_scale] = self.getShape(process, era, channel, category, model_params,
-                                                unc_name, unc_scale.name)
-          except RuntimeError as e:
-            # change: missing shape variation -> just skip this uncertainty here
-            print(f"Skipping {unc_name} for {process.name} in {era}/{channel}/{category}: {e}")
-            continue
-        unc_to_apply = unc.resolveType(nominal_shape, shapes, self.autolnNThr, self.asymlnNThr)
-        can_ignore = unc_to_apply.canIgnore(unc_value, self.ignorelnNThr) if isMVLnUnc else unc_to_apply.canIgnore(self.ignorelnNThr)
-        if can_ignore:
-          print(f"Ignoring uncertainty {unc_name} for {process_name} in {era} {channel} {category}")
-          continue
-        systMap = unc_to_apply.valueToMap(unc_value) if isMVLnUnc else unc_to_apply.valueToMap()
-        # yumeng: Build a SystMap (lnN/shape/asym, possibly multi-value per subprocess)
+      nominal_shape = None
+      shapes = {}
+      if unc.needShapes:
+        model_params = self.param_bins.get(param_str, None)
+        # yumeng: Prepare nominal, up, down shapes and attach them
+        # For lnN style, just registers numbers.
+        #For shape style, calls getShape(..., unc_name, Up/Down) to fetch shifted TH1s and sets them on CH systematic with set_shapes(up, down, nominal).
+        nominal_shape = self.getShape(self.processes[proc], era, channel, category, model_params)
+        for unc_scale in [ UncertaintyScale.Up, UncertaintyScale.Down ]:
+          shapes[unc_scale] = self.getShape(self.processes[proc], era, channel, category, model_params,
+                                            unc_name, unc_scale.name)
+      unc_to_apply = unc.resolveType(nominal_shape, shapes, self.autolnNThr, self.asymlnNThr)
+      can_ignore = unc_to_apply.canIgnore(unc_value, self.ignorelnNThr) if isMVLnUnc else unc_to_apply.canIgnore(self.ignorelnNThr)
+      if can_ignore:
+        print(f"Ignoring uncertainty {unc_name} for {proc} in {era} {channel} {category}")
+        continue
+      systMap = unc_to_apply.valueToMap(unc_value) if isMVLnUnc else unc_to_apply.valueToMap()
+      # yumeng: Build a SystMap (lnN/shape/asym, possibly multi-value per subprocess)
+      # change: Use actual process name and mass parameter
+      cb_copy = self.cbCopy(actual_param_str, actual_proc_name, era, channel, category)
+      cb_copy.AddSyst(self.cb, unc_name, unc_to_apply.type.name, systMap)
+      if unc_to_apply.type == UncertaintyType.shape:
+        shape_set = False
+        def setShape(syst):
+          nonlocal shape_set
+          print(f"Setting unc shape for {syst}")
+          if shape_set:
+            raise RuntimeError("Shape already set")
+          # yumeng: syst.set_shapes(up, down, nominal)
+          syst.set_shapes(shapes[UncertaintyScale.Up], shapes[UncertaintyScale.Down], nominal_shape)
+          shape_set = True
         # change: Use actual process name and mass parameter
-        cb_copy = self.cbCopy(actual_mass_str, actual_proc_name, era, channel, category)
-        cb_copy.AddSyst(self.cb, unc_name, unc_to_apply.type.name, systMap)
-        if unc_to_apply.type == UncertaintyType.shape:
-          shape_set = False
-          def setShape(syst):
-            nonlocal shape_set
-            print(f"Setting unc shape for {syst}")
-            if shape_set:
-              raise RuntimeError("Shape already set")
-            # yumeng: syst.set_shapes(up, down, nominal)
-            syst.set_shapes(shapes[UncertaintyScale.Up], shapes[UncertaintyScale.Down], nominal_shape)
-            shape_set = True
-          # change: Use actual process name and mass parameter
-          cb_copy = self.cbCopy(actual_mass_str, actual_proc_name, era, channel, category).syst_name([unc_name])
-          cb_copy.ForEachSyst(setShape)
+        cb_copy = self.cbCopy(actual_param_str, actual_proc_name, era, channel, category).syst_name([unc_name])
+        cb_copy.ForEachSyst(setShape)
 
   #(6)yumeng:writeDatacards (writes datacards and shape files)
   def writeDatacards(self, output):

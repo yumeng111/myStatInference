@@ -133,17 +133,24 @@ uncertainties:
 
   - name: MuonID_TightID
     type: shape
+    channels: [muTau]
   - name: MuonID_TightIDIso
     type: shape
-  - name: EleID_TightIDIso
-    type: shape
+    channels: [muTau]
+  # - name: EleID_TightIDIso
+  #   type: shape
+  #   channels: [eTau]
 
-  - name: SingleEleTrg
+  #- name: SingleEleTrg
+  - name: HLT_singleEle
     type: shape
-  - name: SingleMuonTrg
+    channels: [eTau]
+  #- name: SingleMuonTrg
+  - name: HLT_singleMu
     type: shape
+    channels: [muTau]
 
-  - name: CMS_pileup_2022EE
+  - name: PileUp_Lumi_MC
     type: shape
     eras:
     - Run3_2022EE
@@ -162,7 +169,7 @@ autoMCStats:
 
 # cmsEnv python3 StatInference/dc_make/create_datacards.py \
 #   --input /eos/user/y/yumeng/HH_bbtautau_Run3/histograms/2022EERun3_20250327Add2GGF \
-#   --output StatInference/config/datacards/20250806add2ggf_22EE_fix_2 \
+#   --output StatInference/config/datacards/20250806add2ggf_22EE_fix_3mass \
 #   --config StatInference/config/yaml_folder/20250806_22EE_fix_2.yaml
   
 
