@@ -33,12 +33,12 @@ class DatacardMaker:
       self.bins.append(bin)
 
     self.model = Model.fromConfig(cfg["model"])
-    #Define is_resonant: True only if there is exactly one parameter and it is "mass"
+    #Change: Define is_resonant: True only if there is exactly one parameter and it is "mass"
     ps = getattr(self.model, "parameters", [])
     self.is_resonant = (len(ps) == 1 and ps[0] == "mass")
     self.param_bins = {}
     self.processes = {}
-    #Store per-(mass, process) parameters so it can be looked up correctly
+    # ?change: Store per-(mass, process) parameters so it can be looked up correctly
     self.param_of = {}  # key: (mass_str, process_name) -> full params dict
     self.base_of = {}   # actual_proc_name -> base_process_name
     data_process = None
@@ -46,7 +46,7 @@ class DatacardMaker:
     for process in cfg["processes"]:
       if (type(process) != str) and process.get('is_signal', False):
         if param_values is not None:
-          #previously "Overwriting signal masses" only for resonant case
+          #change: previously "Overwriting signal masses" only for resonant case
           print(f"Overwriting signal parameters to {param_values}")
           process['param_values'] = param_values
       new_processes = Process.fromConfig(process, self.model)
@@ -116,10 +116,11 @@ class DatacardMaker:
       param_bins.append("*")
     return itertools.product(self.processes.keys(), param_bins, self.eras, self.channels, self.categories)
 
+  #?change: ?unc_name
   def getInputFile(self, era, model_params, unc_name=None, unc_scale=None):
     file_name = self.model.getInputFileName(era, model_params)
     
-    #Handle uncertainty files
+    #change: Handle uncertainty files
     if unc_name and unc_scale:
       unc_file_name = file_name.replace("_Central.root", f"_{unc_name}.root")
       if os.path.exists(os.path.join(self.input_path, unc_file_name)):
@@ -172,8 +173,10 @@ class DatacardMaker:
 
 
   def getShape(self, process, era, channel, category, model_params, unc_name=None, unc_scale=None):
+    #change?: ?unc_name
     file_name, file = self.getInputFile(era, model_params, unc_name, unc_scale)
-    #Add parameter tag to avoid cache key collisions across parameter points, eg kl_2_k2v_1
+    #change?: ?drop signal_processes_histograms
+    #change?: (?no mass) Add parameter tag to avoid cache key collisions across parameter points, eg kl_2_k2v_1
     param_tag = None if model_params is None else self.model.paramStr(model_params)
     key = (file_name, process.name, era, channel, category, unc_name, unc_scale, param_tag)
     if key not in self.shapes:
@@ -191,11 +194,13 @@ class DatacardMaker:
         if hist is None:
           raise RuntimeError("Cannot create asimov data histogram")
       else:
+        # change?
         base = f"{channel}/{category}/"
         
         hists = []
         if process.subprocesses:
           for subp in process.subprocesses:
+            #change?:
             name = base + subp
             if unc_name and unc_scale:
               name += f"_{unc_name}_{unc_scale}"
@@ -204,6 +209,7 @@ class DatacardMaker:
               raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
             hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, subhist))
         else:
+          #change?:
           name = base + process.hist_name
           if unc_name and unc_scale:
             name += f"_{unc_name}_{unc_scale}"
@@ -228,10 +234,12 @@ class DatacardMaker:
         if process.scale != 1:
           hist.Scale(process.scale)
         if process.is_signal:
+            #change?: ?Relevant-bins cache should not depend on file name
             #store signal hists in self.shapes under the following tuple key:
             nominal_signal_key = ("signals", era, channel, category, param_tag)
             self.shapes.setdefault(nominal_signal_key, []).append(hist) 
         else:
+          # change?: ?Always use nominal signals for relevant bins calculation, regardless of uncertainty
           nominal_signal_key = ("signals", era, channel, category, param_tag)
           signal_processes_histograms = self.shapes.get(nominal_signal_key, [])
           relevant_bins = getRelevantBins(era, channel, category,signal_processes_histograms,self.signalFractionForRelevantBins,unc_name, unc_scale, model_params)
@@ -245,6 +253,7 @@ class DatacardMaker:
             print(f'bins_edges: [ {", ".join(bins_edges)} ]')
             print(f'bin_values: [ {", ".join(bin_values)} ]')
             print(f'bin_errors: [ {", ".join(bin_errors)} ]')
+            #change
             raise RuntimeError(
                 f"Negative bins found in histogram for {channel}/{category}/{process.name}"
                 + (f" (syst {unc_name}{unc_scale})" if unc_name and unc_scale else "")
@@ -258,11 +267,12 @@ class DatacardMaker:
   def addProcess(self, proc, era, channel, category):
     bin_idx, bin_name = self.getBin(era, channel, category)
     process = self.processes[proc]
-    #Modified add function to accept process_name parameter for unique signal names
+    #parameter definition–related change?: Modified add function to accept process_name parameter for unique signal names
     def add(model_params, mass_str, process_name):
       if process.is_data:
         self.cb.AddObservations([mass_str], [self.analysis], [era], [channel], [(bin_idx, bin_name)])
       else:
+        #change:
         self.cb.AddProcesses([mass_str], [self.analysis], [era], [channel], [process_name], [(bin_idx, bin_name)], process.is_signal)
 
       shape = self.getShape(process, era, channel, category, model_params)
@@ -274,51 +284,52 @@ class DatacardMaker:
           raise RuntimeError("Shape already set")
         p.set_shape(shape, True)
         shape_set = True
+      #change:
       cb_copy = self.cbCopy(mass_str, process_name, era, channel, category)
       if process.is_data:
         cb_copy.ForEachObs(setShape)
       else:
         cb_copy.ForEachProc(setShape)
 
-    # for signals: iterate over each parameter point (mass, eft_tag)
+    # parameter definition–related change?: for signals: iterate over each parameter point (mass, eft_tag)
     if process.is_signal:
       params = process.params
       if self.is_resonant:
-        # Resonant: .mass = "<mass>", process name stays clean (e.g. XToHH)
+        # parameter definition–related change?, Resonant: .mass = "<mass>", process name stays clean (e.g. XToHH)
         mass_str = str(int(params['mass']))
         actual_proc_name = process.name
       else:
-        # Non-resonant: .mass = "*" and append EFT tag to the process name (e.g. ggHH_kl1p0_kt1p0)
+        # parameter definition–related change?, Non-resonant: .mass = "*" and append EFT tag to the process name (e.g. ggHH_kl1p0_kt1p0)
         eft_tag = self.model.paramStr(params)   # must ignore 'mass'
         mass_str = "*"
         actual_proc_name = f"{process.name}_{eft_tag}"
 
-      # Remember this parameter point for later (shape & syst lookup):
+      # parameter definition–related change?, Remember this parameter point for later (shape & syst lookup):
       self.param_of[(mass_str, actual_proc_name)] = params
-      # add base
+      # parameter definition–related change?: add base
       self.base_of[actual_proc_name] = process.name
-      # Register with CH and set shapes using cbCopy(mass_str, actual_proc_name, ...)
+      # parameter definition–related change?: Register with CH and set shapes using cbCopy(mass_str, actual_proc_name, ...)
       add(params, mass_str, actual_proc_name)
     elif self.model.param_dependent_bkg:
       for signal_proc in self.processes.values():
         if signal_proc.is_signal:
-          # Get model parameters for current parameter point
+          # parameter definition–related change?: Get model parameters for current parameter point
           params = signal_proc.params
           mass_str = str(int(params['mass'])) if self.is_resonant else "*"
           actual_proc_name = proc
-          # record for uncertainties:
+          # parameter definition–related?: record for uncertainties:
           self.param_of[(mass_str, actual_proc_name)] = params
           self.base_of[actual_proc_name] = proc
           add(params, mass_str, proc)
     else:
-      # Backgrounds (and data) are stored under '*' unless bkg depends on params
+      # parameter definition–related change?: Backgrounds (and data) are stored under '*' unless bkg depends on params
       add(None, "*", proc)
 
   def addUncertainty(self, unc_name):
     unc = self.uncertainties[unc_name]
     isMVLnUnc = isinstance(unc, MultiValueLnNUncertainty)
     
-    # Make sure param-independent backgrounds also get uncertainties
+    # change?: Make sure param-independent backgrounds also get uncertainties
     items = list(self.param_of.items())
     if not self.model.param_dependent_bkg:
       for pname, p in self.processes.items():
@@ -327,12 +338,12 @@ class DatacardMaker:
 
     for (mass_str, process_name), params in items:
       for era, channel, category in self.ECC():
-        #fall back for resonant
+        #change?: fall back for resonant
         base_name = self.base_of.get(process_name, process_name)
         process = self.processes[base_name]
         if process.is_data: continue
         
-        # Get model parameters from param_of mapping
+        # change?: Get model parameters from param_of mapping
         model_params = params
         if isMVLnUnc:
           unc_value = self.getMultiValueLnUnc(unc,unc_name,process, era, channel, category, model_params)
@@ -341,14 +352,14 @@ class DatacardMaker:
         if not uncApplies: continue
         if not process.hasCompatibleModelParams(model_params, self.model.param_dependent_bkg): continue
 
-        # Use mass_str and process_name from param_of mapping
+        # change?: Use mass_str and process_name from param_of mapping
         actual_proc_name = process_name
         actual_mass_str = mass_str
 
         nominal_shape = None
         shapes = {}
         if unc.needShapes:
-          # Use model_params from param_of mapping
+          # change?: Use model_params from param_of mapping
           nominal_shape = self.getShape(process, era, channel, category, model_params)
           for unc_scale in [ UncertaintyScale.Up, UncertaintyScale.Down ]:
             shapes[unc_scale] = self.getShape(process, era, channel, category, model_params,
@@ -359,7 +370,7 @@ class DatacardMaker:
           print(f"Ignoring uncertainty {unc_name} for {process_name} in {era} {channel} {category}")
           continue
         systMap = unc_to_apply.valueToMap(unc_value) if isMVLnUnc else unc_to_apply.valueToMap()
-        # Use actual process name and mass parameter
+        # change?: Use actual process name and mass parameter
         cb_copy = self.cbCopy(actual_mass_str, actual_proc_name, era, channel, category)
         cb_copy.AddSyst(self.cb, unc_name, unc_to_apply.type.name, systMap)
         if unc_to_apply.type == UncertaintyType.shape:
@@ -371,19 +382,19 @@ class DatacardMaker:
               raise RuntimeError("Shape already set")
             syst.set_shapes(shapes[UncertaintyScale.Up], shapes[UncertaintyScale.Down], nominal_shape)
             shape_set = True
-          # Use actual process name and mass parameter
+          # change?: Use actual process name and mass parameter
           cb_copy = self.cbCopy(actual_mass_str, actual_proc_name, era, channel, category).syst_name([unc_name])
           cb_copy.ForEachSyst(setShape)
 
   def writeDatacards(self, output):
     os.makedirs(output, exist_ok=True)
     
-    # Simplified process collection - get all process names from CombineHarvester object (these now include unique signal names)
+    # change?: Simplified process collection - get all process names from CombineHarvester object (these now include unique signal names)
     all_process_names = set()
     for proc in self.cb.cp().process_set():
       all_process_names.add(proc)
     
-    # Create separate datacards for each channel-category combination
+    # parameter definition–related change?: Create separate datacards for each channel-category combination
     def slug(s: str) -> str:
       # lower, turn slashes into underscores, and collapse any weird chars to "_"
       s = s.lower().replace('/', '_')
@@ -410,10 +421,11 @@ class DatacardMaker:
               tmp_dc_file, tmp_shape_file
           )
 
-    # Write main combined datacard with all signals and backgrounds
+    # change?: Write main combined datacard with all signals and backgrounds
     dc_file = os.path.join(output, "datacard_combined_signals.txt")
-    # Create main combined shape file
+    # change?: Create main combined shape file
     main_shape_file = os.path.join(output, "combined_signals_all.root")
+    #change:
     self.cb.cp().mass(['*']).WriteDatacard(dc_file, main_shape_file)
 
 
