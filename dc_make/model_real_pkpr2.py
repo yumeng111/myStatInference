@@ -11,24 +11,17 @@ class Model:
     return applyParameters(self.input_file_pattern, file_param_values)
 
   def paramStr(self, param_values=None):
-  #pr: replace
-  #   # yumeng change for nonresonant params: Ensure Model.paramStr(params) ignores 'mass'
-  #   if param_values is None: return "nominal"
-  #   clean = {k:v for k,v in param_values.items() if k != "mass"}
-  #   if not clean: return "nominal"
-  #   #yumeng change for nonresonant params, e.g. kl1p0_kt1p0
-  #   param_strs = [ f"{param}_{clean[param]}" for param in clean.keys() ]
-  #   return '_'.join(param_strs)
+    # yumeng change for mass: Ensure Model.paramStr(params) ignores 'mass'
+    if param_values is None: return "nominal"
+    clean = {k:v for k,v in param_values.items() if k != "mass"}
+    if not clean: return "nominal"
+    # yumeng change for massformat, e.g. kl1p0_kt1p0
+    param_strs = [ f"{param}_{clean[param]}" for param in clean.keys() ]
+    return '_'.join(param_strs)
 
-  #pr: replace
-  # def massStr(self, param_values):
-  #   # yumeng change for mass: only called if 'mass' in params
-  #   return str(int(param_values['mass']))   # standard CH mass axis
-    # ORIGINAL behavior: include all parameters in the configured order
-    if param_values is None:
-      return "nominal"
-    param_strs = [f"{param}_{param_values[param]}" for param in self.parameters]
-    return "_".join(param_strs)
+  def massStr(self, param_values):
+    # yumeng change for mass: only called if 'mass' in params
+    return str(int(param_values['mass']))   # standard CH mass axis
 
   @staticmethod
   def fromConfig(entry):
