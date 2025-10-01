@@ -39,24 +39,7 @@ class Binner:
         if len(new_binning) >= 2:
             raise RuntimeError(f"Multiple binnings found for era/channel/category/params {era}/{channel}/{category}/{model_params}")
 
-        #new_hist = ROOT.TH1F(hist.GetName(), hist.GetTitle(), len(new_binning[0]) - 1,new_binning[0].data())
-        #pr2: debug
-        print(f"DEBUG: Creating histogram for {era}/{channel}/{category}")
-        print(f"DEBUG: Original hist name: {hist.GetName()}, title: {hist.GetTitle()}")
-        print(f"DEBUG: Number of bins: {len(new_binning[0]) - 1}")
-        bins_vec = new_binning[0]
-        print(f"DEBUG: bins_vec type: {type(bins_vec)}")
-        print(f"DEBUG: bins_vec length: {len(bins_vec)}")
-        print(f"DEBUG: bins_vec contents: {[bins_vec[i] for i in range(min(5, len(bins_vec)))]}...")
-        data_ptr = bins_vec.data()
-        print(f"DEBUG: data() pointer: {data_ptr}")
-        print(f"DEBUG: data() is None: {data_ptr is None}")
-        if data_ptr is None:
-            print("ERROR: bins_vec.data() returned None!")
-            return hist  # Return original histogram if binning fails
-        new_hist = ROOT.TH1F(hist.GetName(), hist.GetTitle(), len(bins_vec) - 1, data_ptr)
-        print(f"DEBUG: Created new histogram: {new_hist}")
-        
+        new_hist = ROOT.TH1F(hist.GetName(), hist.GetTitle(), len(new_binning[0]) - 1,new_binning[0].data())
         rebinAndFill(new_hist, hist)
         return new_hist
 

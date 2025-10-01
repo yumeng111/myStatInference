@@ -6,11 +6,12 @@ model:
   #parameters: [ kl]
   #parameters: [ ]
   param_dependent_bkg: false
-  input_file_pattern: ${ERA}/merged/bbtautau_mass/tmp/all_histograms_bbtautau_mass_Central.root
+  input_file_pattern: ${ERA}/merged/bbtautau_mass/bbtautau_mass.root
   #var_to: tautau_m_vis
 
 hist_bins: [ 250, 300, 350, 400, 450, 500, 600, 1000 ]
 signalFractionForRelevantBins: 0.20
+keep_all_signal_hypothesis_into_single_datacard: true
 
 eras:
   - Run3_2022EE
@@ -21,9 +22,9 @@ channels:
   - tauTau
 
 categories:
-  - OS_Iso/res2b_cat3
-  - OS_Iso/res1b_cat3
-  - OS_Iso/boosted_cat3_masswindow
+  - res2b_cat3
+  - res1b_cat3
+  - boosted_cat3_masswindow
 
 processes:
   # Data / Asimov
@@ -150,7 +151,7 @@ uncertainties:
     type: shape
     channels: [muTau]
 
-  - name: PileUp_Lumi_MC
+  - name: CMS_pileup_2022EE
     type: shape
     eras:
     - Run3_2022EE
@@ -169,7 +170,7 @@ autoMCStats:
 
 # cmsEnv python3 StatInference/dc_make/create_datacards.py \
 #   --input /eos/user/y/yumeng/HH_bbtautau_Run3/histograms/2022EERun3_20250327Add2GGF \
-#   --output StatInference/config/datacards/20250806add2ggf_22EE_fix_3mass \
+#   --output StatInference/config/datacards/20250806add2ggf_22EE_fix_3mass_pr2 \
 #   --config StatInference/config/yaml_folder/20250806_22EE_fix_2.yaml
   
 
