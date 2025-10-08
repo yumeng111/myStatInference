@@ -173,26 +173,29 @@ class DatacardMaker:
         if hist is None:
           raise RuntimeError("Cannot create asimov data histogram")
       else:
-        hist_name = f"{channel}/{category}/{process.hist_name}"        
+        base = f"{channel}/{category}/"
+        
         hists = []
         if process.subprocesses:
           for subp in process.subprocesses:
-            hist_name = f"{channel}/{category}/{subp}"
+            name = base + subp
             if unc_name and unc_scale:
-              hist_name += f"_{unc_name}{unc_scale}"
-            subhist = file.Get(hist_name)
+              name += f"_{unc_name}{unc_scale}"
+            subhist = file.Get(name)
             if subhist is None:
-              raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
+              raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
             hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, subhist))
         else:
+          name = base + process.hist_name
           if unc_name and unc_scale:
-            hist_name += f"_{unc_name}{unc_scale}"
-          hist = file.Get(hist_name)
+            name += f"_{unc_name}{unc_scale}"
+          hist = file.Get(name)
           if hist is None:
-            raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
+            raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
           hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, hist))
         if len(hists) == 0:
           raise RuntimeError(f"hist list is empty for file {file.GetName()}")
+        
         hist = hists[0]
         if len(hists)>1:
           for histy in hists[1:]:
@@ -256,27 +259,27 @@ class DatacardMaker:
         cb_copy.ForEachProc(setShape)
 
     if process.is_signal:
-      model_params = process.params
-      param_str = self.model.paramStr(model_params)
+      params = process.params
+      param_str = self.model.paramStr(params)
       if self.keep_all_signal_hypothesis_into_single_datacard:
         actual_proc_name = f"{process.name}_{param_str}"
-        add(model_params, '*', actual_proc_name)
-        self.param_of[('*', actual_proc_name)] = model_params
+        add(params, '*', actual_proc_name)
+        self.param_of[('*', actual_proc_name)] = params
         self.base_of[actual_proc_name] = process.name
       else:
         actual_proc_name = process.name
-        add(model_params, param_str, actual_proc_name)
-        self.param_of[(param_str, actual_proc_name)] = model_params
+        add(params, param_str, actual_proc_name)
+        self.param_of[(param_str, actual_proc_name)] = params
         self.base_of[actual_proc_name] = process.name
 
       
     elif self.model.param_dependent_bkg:
       for signal_proc in self.processes.values():
         if not signal_proc.is_signal: continue
-        model_params = signal_proc.params
-        param_str = self.model.paramStr(model_params) if not self.keep_all_signal_hypothesis_into_single_datacard else '*'
-        add(model_params, param_str, proc)
-        self.param_of[(param_str, proc)] = model_params
+        params = signal_proc.params
+        param_str = self.model.paramStr(params) if not self.keep_all_signal_hypothesis_into_single_datacard else '*'
+        add(params, param_str, proc)
+        self.param_of[(param_str, proc)] = params
         self.base_of[proc] = proc
     else:
       add(None, "*", proc)

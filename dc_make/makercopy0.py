@@ -260,29 +260,36 @@ class DatacardMaker:
         #yumeng: (c) Nominal or shifted (shape) histogram name(s)
         # base: "<channel>/<category>/<process.hist_name or subprocess>"
         # if it's a shape uncertainty: append "_{unc_name}{Up/Down}"
-        hist_name = f"{channel}/{category}/{process.hist_name}"
+        
+        # change: Keep category fixed; append the systematic to the process/subprocess name
+        base = f"{channel}/{category}/"
+        
         hists = []
         if process.subprocesses:
           for subp in process.subprocesses:
+            #change:
+            name = base + subp
             if unc_name and unc_scale:
-              hist_name += f"_{unc_name}{unc_scale}"
-            subhist = file.Get(hist_name)
+              name += f"_{unc_name}{unc_scale}"
+            subhist = file.Get(name)
             if subhist is None:
-              raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
+              raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
             hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, subhist))
         else:
+          #change
+          name = base + process.hist_name
           if unc_name and unc_scale:
-            hist_name += f"_{unc_name}{unc_scale}"
+            name += f"_{unc_name}{unc_scale}"
           #change: add debug
-          #print(f"DEBUG: Looking for histogram '{hist_name}' in file '{file.GetName()}'")
-          hist = file.Get(hist_name)
+          #print(f"DEBUG: Looking for histogram '{name}' in file '{file.GetName()}'")
+          hist = file.Get(name)
           #change: add debug
           #print(f"DEBUG: Histogram result: {hist}")
           if hist is None:
             #change: add debug
             #print(f"DEBUG: Histogram not found. Available keys in file:")
             #file.ls()
-            raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
+            raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
           #change: add debug
           #print(f"DEBUG: Histogram found, applying binning...")
           hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, hist))
@@ -328,7 +335,7 @@ class DatacardMaker:
         #Background, compute a relevant-bins mask (bins where signal fraction exceeds a threshold), 
         #then run negative-bin remediation (clip/smooth/merge per resolveNegativeBins policy).
         #If remediation fails, prints edges/values/errors and throws to force a fix upstream.
-        #main diff idea: only care about NEGATIVE bins where signal actually matters (by signalFractionForRelevantBins threshold). reduces false alarms in empty tails.
+        #idea: only care about negative bins where signal actually matters (by signalFractionForRelevantBins threshold). reduces false alarms in empty tails.
         #pr2:replace
         else:
           # change: Always use nominal signals for relevant bins calculation, regardless of uncertainty
@@ -369,7 +376,7 @@ class DatacardMaker:
     #suspiciuos, AddObservations or AddProcesses declare bins and process roster to CH.
     #change for params: Modified add function to accept process_name parameter for unique signal names
     #In combine, AddObservations and AddProcesses require a mass argument (previously param_str here is mass_str)
-    #pr2:replace (proc may only comtain ggHH)
+    #pr2:replace
     def add(model_params, param_str, process_name):
       if process.is_data:
         self.cb.AddObservations([param_str], [self.analysis], [era], [channel], [(bin_idx, bin_name)])
@@ -396,7 +403,7 @@ class DatacardMaker:
 
     # change for params: Suspicious, for signals: iterate over each parameter point (mass, eft_tag)
     if process.is_signal:
-      model_params = process.params
+      params = process.params
       # if self.is_resonant:
       #   # change for params, Resonant: .mass = "<mass>", process name stays clean (e.g. XToHH)
       #   mass_str = str(int(params['mass']))
@@ -414,10 +421,10 @@ class DatacardMaker:
       # # yumeng: Register with CH and set shapes using cbCopy(mass_str, actual_proc_name, ...)
       # add(params, mass_str, actual_proc_name)
       #pr2:replace
-      param_str = self.model.paramStr(model_params)
+      param_str = self.model.paramStr(params)
       if self.keep_all_signal_hypothesis_into_single_datacard:
         actual_proc_name = f"{process.name}_{param_str}"
-        add(model_params, '*', actual_proc_name)
+        add(params, '*', actual_proc_name)
         self.param_of[('*', actual_proc_name)] = params
         self.base_of[actual_proc_name] = process.name
       else:
