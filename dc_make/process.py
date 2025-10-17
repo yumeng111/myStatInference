@@ -1,7 +1,7 @@
 from ..common.param_parse import extractParameters, applyParameters, parameterListToDict
 
 class Process:
-  def __init__(self, name, hist_name, is_signal=False, is_data=False, is_asimov_data=False, scale=1, params=None, subprocesses=None, allow_zero_integral=False, allow_negative_bins_within_error=False, max_n_sigma_for_negative_bins=1, allow_negative_integral=False):
+  def __init__(self, name, hist_name, is_signal=False, is_data=False, is_asimov_data=False, scale=1, params=None, subprocesses=None, allow_zero_integral=False, allow_negative_bins_within_error=False, max_n_sigma_for_negative_bins=1, allow_negative_integral=False, channels=[]):
     self.name = name
     self.hist_name = hist_name
     self.is_signal = is_signal
@@ -15,6 +15,7 @@ class Process:
     self.allow_negative_bins_within_error = allow_negative_bins_within_error
     self.max_n_sigma_for_negative_bins = max_n_sigma_for_negative_bins
     self.allow_negative_integral = allow_negative_integral
+    self.channels = channels
     if is_data and is_signal:
       raise RuntimeError("Data and signal flags cannot be set simultaneously")
     if is_asimov_data and not is_data:
@@ -49,7 +50,6 @@ class Process:
   @staticmethod
   def fromConfig(entry, model):
     if type(entry) == str:
-      #yumeng: both process name and histogram name default to "str"
       return [ Process(entry, entry) ]
     if type(entry) != dict:
       raise RuntimeError("Invalid entry type")
@@ -64,32 +64,24 @@ class Process:
     allow_negative_integral = entry.get("allow_negative_integral", False)
     allow_negative_bins_within_error = entry.get("allow_negative_bins_within_error", False)
     max_n_sigma_for_negative_bins = entry.get("max_n_sigma_for_negative_bins", 1)
+    channels = entry.get("channels", [])
     if type(scale) == str:
       scale = eval(scale)
     if 'param_values' not in entry:
       if is_signal and len(model.parameters) > 0:
         raise RuntimeError("Signal process must have parameter values")
-      #yumeng: Backgrounds and data omit param_values. returns one Process with base names.
-      return [ Process(base_name, base_hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral )]
+      # return [ Process(base_name, base_hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral )]
+      return [ Process(base_name, base_hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral, channels=channels )]
 
-    #yumeng: else: for non-signals, parameters parsed from base_name
     parameters = model.parameters if is_signal else extractParameters(base_name)
     param_values = entry["param_values"]
     if type(param_values) != list or len(param_values) == 0:
       raise RuntimeError("Invalid parameter values")
-    
-    # Check if param_values is a list of lists (multiple parameter points) or a single parameter point
-    if len(param_values) > 0 and type(param_values[0]) == list:
-      # Multiple parameter points: [[1.0, 1.0], [2.45, 1.0], ...]
-      # yumeng: Multiple parameter sets: [[1.0, 1.0], [2.45, 1.0], ...], will replace $ in base_name
-      processes = []
-      for param_entry in param_values:
-        param_dict = parameterListToDict(parameters, param_entry)
-        name = applyParameters(base_name, param_dict)
-        hist_name = applyParameters(base_hist_name, param_dict)
-        processes.append(Process(name, hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral, params=param_dict))
-      return processes
-    else:
-      # Single parameter point: [1.0, 1.0] - use the process name as-is
-      param_dict = parameterListToDict(parameters, param_values)
-      return [Process(base_name, base_hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral, params=param_dict)]
+    processes = []
+    for param_entry in param_values:
+      param_dict = parameterListToDict(parameters, param_entry)
+      name = applyParameters(base_name, param_dict)
+      hist_name = applyParameters(base_hist_name, param_dict)
+      # processes.append(Process(name, hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral, params=param_dict))
+      processes.append(Process(name, hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral, params=param_dict, channels=channels ))
+    return processes

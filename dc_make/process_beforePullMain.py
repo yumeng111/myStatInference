@@ -49,6 +49,7 @@ class Process:
   @staticmethod
   def fromConfig(entry, model):
     if type(entry) == str:
+      #yumeng: both process name and histogram name default to "str"
       return [ Process(entry, entry) ]
     if type(entry) != dict:
       raise RuntimeError("Invalid entry type")
@@ -68,8 +69,10 @@ class Process:
     if 'param_values' not in entry:
       if is_signal and len(model.parameters) > 0:
         raise RuntimeError("Signal process must have parameter values")
+      #yumeng: Backgrounds and data omit param_values. returns one Process with base names.
       return [ Process(base_name, base_hist_name, is_signal=is_signal, is_data=is_data, is_asimov_data=is_asimov_data,scale=scale,subprocesses=subprocesses,  allow_zero_integral=allow_zero_integral, allow_negative_bins_within_error=allow_negative_bins_within_error, max_n_sigma_for_negative_bins=max_n_sigma_for_negative_bins, allow_negative_integral=allow_negative_integral )]
 
+    #yumeng: else: for non-signals, parameters parsed from base_name
     parameters = model.parameters if is_signal else extractParameters(base_name)
     param_values = entry["param_values"]
     if type(param_values) != list or len(param_values) == 0:
@@ -78,6 +81,7 @@ class Process:
     # Check if param_values is a list of lists (multiple parameter points) or a single parameter point
     if len(param_values) > 0 and type(param_values[0]) == list:
       # Multiple parameter points: [[1.0, 1.0], [2.45, 1.0], ...]
+      # yumeng: Multiple parameter sets: [[1.0, 1.0], [2.45, 1.0], ...], will replace $ in base_name
       processes = []
       for param_entry in param_values:
         param_dict = parameterListToDict(parameters, param_entry)
