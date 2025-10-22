@@ -675,7 +675,7 @@ class DatacardMaker:
         # Filter to this bin; keep all signal hypotheses (mass ['*'])
         self.cb.cp().bin([bin_name]).mass(['*']).WriteDatacard(perbin_dc, perbin_root)
 
-      *upper: non resonant
+      #upper: non resonant
       return
 
     background_names = [n for n,p in self.processes.items() if p.is_background]
