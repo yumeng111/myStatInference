@@ -1,7 +1,6 @@
 import itertools
 import math
 import os
-import re
 import yaml
 
 #yumeng
@@ -13,6 +12,7 @@ from .uncertainty import Uncertainty, UncertaintyType, UncertaintyScale, MultiVa
 from .model import Model
 from .binner import Binner
 ROOT = importROOT()
+
 
 #(1)yumeng:DatacardMaker initialization (what’s loaded from config)
 class DatacardMaker:
@@ -31,6 +31,7 @@ class DatacardMaker:
     self.categories = cfg["categories"]
     self.signalFractionForRelevantBins = cfg['signalFractionForRelevantBins']
 
+    
     # yumeng: name each bin as "<era>_<analysis>_<channel>_<category>", caches them in self.bins
     self.bins = []
     for era, channel, cat in self.ECC():
@@ -48,7 +49,7 @@ class DatacardMaker:
     # # change: Define is_resonant: True only if there is exactly one parameter and it is "mass"
     # self.is_resonant = (len(ps) == 1 and ps[0] == "mass")
 
-    # yumeng: Build process list (data, bkgs, signals)
+    # yumeng: Build process list (data, bkgs, signals). used in addProcess
     self.param_bins = {}
     self.processes = {}
     #pr2:replace back
@@ -58,6 +59,10 @@ class DatacardMaker:
     self.base_of = {}   # actual_proc_name -> base_process_name
     data_process = None
     has_signal = False
+    self.channel_processes = {}
+    for channel in self.channels:
+      self.channel_processes[channel] = []
+    #yumeng: processes added to processes dictionary {}, eg {"ggHH_kl_1.0_k2v_1.0": <Process object>,}
     for process in cfg["processes"]:
       #Yumeng: for signal dictionary: scan diff param values from cmd line without modify yaml
       if (type(process) != str) and process.get('is_signal', False):
@@ -65,7 +70,6 @@ class DatacardMaker:
           #change: previouly "Overwriting signal masses" only for resonant case
           print(f"Overwriting signal parameters to {param_values}")
           process['param_values'] = param_values
-      
       #Yumeng: Expand (+ possibly split into subprocesses) and register processes (for top level process and keep track of subprocesses)
       new_processes = Process.fromConfig(process, self.model)
       for process in new_processes:
@@ -73,6 +77,15 @@ class DatacardMaker:
           raise RuntimeError(f"Process name {process.name} already exists")
         print(f"Adding {process}")
         self.processes[process.name] = process
+        if process.channels:
+          for channel in process.channels:
+            if channel not in self.channel_processes:
+              print(f"Channel {channel} not defined in config")
+              continue
+            self.channel_processes[channel].append(process.name)
+        else:
+          for channel in self.channels:
+            self.channel_processes[channel].append(process.name)
         #yumeng: only one data process is allowed
         if process.is_data:
           if data_process is not None:
@@ -120,6 +133,7 @@ class DatacardMaker:
     hist_bins = hist_bins or cfg.get("hist_bins", None)
     # yumeng: Binning helper
     self.hist_binner = Binner(hist_bins)
+    # print(f"Using hist_bins: {self.hist_binner.hist_bins}")
 
     # yumeng: caches
     self.input_files = {}
@@ -147,6 +161,7 @@ class DatacardMaker:
     #return self.cb.cp().mass([mass_str]).process([process]).bin([bin_name])
     return self.cb.cp().mass([param_str]).process([process]).bin([bin_name])
 
+  #ECC returns the Cartesian product of all (era, channel, category) combinations. 
   def ECC(self):
     return itertools.product(self.eras, self.channels, self.categories)
 
@@ -249,6 +264,8 @@ class DatacardMaker:
         hist = None
         for bkg_proc in self.processes.values():
           if bkg_proc.is_background:
+            if bkg_proc.name not in self.channel_processes[channel]: 
+              continue
             bkg_hist = self.getShape(bkg_proc, era, channel, category, model_params)
             if hist is None:
               hist = bkg_hist.Clone()
@@ -260,36 +277,30 @@ class DatacardMaker:
         #yumeng: (c) Nominal or shifted (shape) histogram name(s)
         # base: "<channel>/<category>/<process.hist_name or subprocess>"
         # if it's a shape uncertainty: append "_{unc_name}{Up/Down}"
-        
-        # change: Keep category fixed; append the systematic to the process/subprocess name
-        base = f"{channel}/{category}/"
-        
+        hist_name = f"{channel}/{category}/{process.hist_name}"
         hists = []
         if process.subprocesses:
           for subp in process.subprocesses:
-            #change:
-            name = base + subp
+            hist_name = f"{channel}/{category}/{subp}"
             if unc_name and unc_scale:
-              name += f"_{unc_name}{unc_scale}"
-            subhist = file.Get(name)
-            if subhist is None:
-              raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
+              hist_name += f"_{unc_name}{unc_scale}"
+            subhist = file.Get(hist_name)
+            if subhist == None:
+              raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
             hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, subhist))
         else:
-          #change
-          name = base + process.hist_name
           if unc_name and unc_scale:
-            name += f"_{unc_name}{unc_scale}"
+            hist_name += f"_{unc_name}{unc_scale}"
           #change: add debug
-          #print(f"DEBUG: Looking for histogram '{name}' in file '{file.GetName()}'")
-          hist = file.Get(name)
+          #print(f"DEBUG: Looking for histogram '{hist_name}' in file '{file.GetName()}'")
+          hist = file.Get(hist_name)
           #change: add debug
           #print(f"DEBUG: Histogram result: {hist}")
-          if hist is None:
+          if hist == None:
             #change: add debug
             #print(f"DEBUG: Histogram not found. Available keys in file:")
             #file.ls()
-            raise RuntimeError(f"Cannot find histogram {name} in {file.GetName()}")
+            raise RuntimeError(f"Cannot find histogram {hist_name} in {file.GetName()}")
           #change: add debug
           #print(f"DEBUG: Histogram found, applying binning...")
           hists.append(self.hist_binner.applyBinning(era, channel, category, model_params, hist))
@@ -335,7 +346,7 @@ class DatacardMaker:
         #Background, compute a relevant-bins mask (bins where signal fraction exceeds a threshold), 
         #then run negative-bin remediation (clip/smooth/merge per resolveNegativeBins policy).
         #If remediation fails, prints edges/values/errors and throws to force a fix upstream.
-        #idea: only care about negative bins where signal actually matters (by signalFractionForRelevantBins threshold). reduces false alarms in empty tails.
+        #main diff idea: only care about NEGATIVE bins where signal actually matters (by signalFractionForRelevantBins threshold). reduces false alarms in empty tails.
         #pr2:replace
         else:
           # change: Always use nominal signals for relevant bins calculation, regardless of uncertainty
@@ -376,7 +387,8 @@ class DatacardMaker:
     #suspiciuos, AddObservations or AddProcesses declare bins and process roster to CH.
     #change for params: Modified add function to accept process_name parameter for unique signal names
     #In combine, AddObservations and AddProcesses require a mass argument (previously param_str here is mass_str)
-    #pr2:replace
+    #pr2:replace (proc may only comtain ggHH)
+    #add and process_name will be called later in this func
     def add(model_params, param_str, process_name):
       if process.is_data:
         self.cb.AddObservations([param_str], [self.analysis], [era], [channel], [(bin_idx, bin_name)])
@@ -403,7 +415,7 @@ class DatacardMaker:
 
     # change for params: Suspicious, for signals: iterate over each parameter point (mass, eft_tag)
     if process.is_signal:
-      params = process.params
+      model_params = process.params
       # if self.is_resonant:
       #   # change for params, Resonant: .mass = "<mass>", process name stays clean (e.g. XToHH)
       #   mass_str = str(int(params['mass']))
@@ -421,16 +433,16 @@ class DatacardMaker:
       # # yumeng: Register with CH and set shapes using cbCopy(mass_str, actual_proc_name, ...)
       # add(params, mass_str, actual_proc_name)
       #pr2:replace
-      param_str = self.model.paramStr(params)
+      param_str = self.model.paramStr(model_params)
       if self.keep_all_signal_hypothesis_into_single_datacard:
         actual_proc_name = f"{process.name}_{param_str}"
-        add(params, '*', actual_proc_name)
-        self.param_of[('*', actual_proc_name)] = params
+        add(model_params, '*', actual_proc_name)
+        self.param_of[('*', actual_proc_name)] = model_params
         self.base_of[actual_proc_name] = process.name
       else:
         actual_proc_name = process.name
-        add(params, param_str, actual_proc_name)
-        self.param_of[(param_str, actual_proc_name)] = params
+        add(model_params, param_str, actual_proc_name)
+        self.param_of[(param_str, actual_proc_name)] = model_params
         self.base_of[actual_proc_name] = process.name
 
       
@@ -447,10 +459,10 @@ class DatacardMaker:
         #   add(params, mass_str, proc)
         #pr2:replace
         if not signal_proc.is_signal: continue
-        params = signal_proc.params
-        param_str = self.model.paramStr(params) if not self.keep_all_signal_hypothesis_into_single_datacard else '*'
-        add(params, param_str, proc)
-        self.param_of[(param_str, proc)] = params
+        model_params = signal_proc.params
+        param_str = self.model.paramStr(model_params) if not self.keep_all_signal_hypothesis_into_single_datacard else '*'
+        add(model_params, param_str, proc)
+        self.param_of[(param_str, proc)] = model_params
         self.base_of[proc] = proc
     else:
       # change: Backgrounds (and data) are stored under '*' unless bkg depends on params
@@ -516,6 +528,8 @@ class DatacardMaker:
     #     cb_copy.AddSyst(self.cb, unc_name, unc_to_apply.type.name, systMap)
     #pr2:replace
     for proc, param_str, era, channel, category in self.PPECC():
+      if proc not in self.channel_processes[channel]: 
+        continue
       process = self.processes[proc]
       if process.is_data: continue
       model_params = self.param_bins.get(param_str, None)
@@ -532,9 +546,12 @@ class DatacardMaker:
       if unc.needShapes:
         model_params = self.param_bins.get(param_str, None)
         nominal_shape = self.getShape(self.processes[proc], era, channel, category, model_params)
+        
+        
         for unc_scale in [ UncertaintyScale.Up, UncertaintyScale.Down ]:
           shapes[unc_scale] = self.getShape(self.processes[proc], era, channel, category, model_params,
                                             unc_name, unc_scale.name)
+      
       unc_to_apply = unc.resolveType(nominal_shape, shapes, self.autolnNThr, self.asymlnNThr)
       can_ignore = unc_to_apply.canIgnore(unc_value, self.ignorelnNThr) if isMVLnUnc else unc_to_apply.canIgnore(self.ignorelnNThr)
       if can_ignore:
@@ -554,6 +571,8 @@ class DatacardMaker:
           shape_set = True
         self.cbCopy(param_str, proc, era, channel, category).syst_name([unc_name]).ForEachSyst(setShape)
     
+    #Without non-resonant flag: uncertainties are added (cb_copy.AddSyst) once, keyed by (param_str, proc) from the standard bookkeeping.
+    #With flag: uncertainties are added again for each parameterized “expanded” process created for single combined datacard, using param_of/base_of maps to find the right params and base process.
     if self.keep_all_signal_hypothesis_into_single_datacard:
         for (param_str, proc_name), params in self.param_of.items():
             for era, channel, category in self.ECC():
@@ -656,6 +675,7 @@ class DatacardMaker:
         # Filter to this bin; keep all signal hypotheses (mass ['*'])
         self.cb.cp().bin([bin_name]).mass(['*']).WriteDatacard(perbin_dc, perbin_root)
 
+      *upper: non resonant
       return
 
     background_names = [n for n,p in self.processes.items() if p.is_background]
@@ -689,10 +709,14 @@ class DatacardMaker:
         #   self.addProcess(process_name, era, channel, category)
 
         for name, p in self.processes.items():
+          if name not in self.channel_processes[channel]:
+              continue
           if p.is_signal:
             self.addProcess(name, era, channel, category)
       for era, channel, category in self.ECC():
         for name, p in self.processes.items():
+          if name not in self.channel_processes[channel]:
+              continue
           if not p.is_signal:
             self.addProcess(name, era, channel, category)
       

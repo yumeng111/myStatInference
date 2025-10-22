@@ -43,80 +43,80 @@ processes:
     hist_name: GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00
     is_signal: true
     scale: 2 * 0.5824 * 0.06272 * 0.034170   # 34.170 fb
-    param_values: [1.0, 1.0]
+    param_values: [[1.0, 1.0]]
 
   - process: ggHH_kl_2p45_kt_1_hbbhtt
     hist_name: GluGlutoHHto2B2Tau_kl_2p45_kt_1p00_c2_0p00_LHEweights
     is_signal: true
     scale: 2 * 0.5824 * 0.06272 * 0.014814
-    param_values: [2.45, 1.0]
+    param_values: [[2.45, 1.0]]
 
   - process: ggHH_kl_5_kt_1_hbbhtt
     hist_name: GluGlutoHHto2B2Tau_kl_5p00_kt_1p00_c2_0p00
     is_signal: true
     scale: 2 * 0.5824 * 0.06272 * 0.097259
-    param_values: [5.0, 1.0]
+    param_values: [[5.0, 1.0]]
   
   # VBF samples
   - process: qqHH_CV_1p74_C2V_1p37_kl_14p4_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_1p74_C2V_1p37_C3_14p4
     is_signal: true
     scale: 0.4002163 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [14.4, 1.37]
+    param_values: [[14.4, 1.37]]
   
   - process: qqHH_CV_m0p012_C2V_0p030_kl_10p2_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_m0p012_C2V_0p030_C3_10p2
     is_signal: true
     scale: 0.0000127 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [10.2, 0.030]
+    param_values: [[10.2, 0.030]]
   
   - process: qqHH_CV_m0p758_C2V_1p44_kl_m19p3_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_m0p758_C2V_1p44_C3_m19p3
     is_signal: true
     scale: 0.3593242 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [-19.3, 1.44]
+    param_values: [[-19.3, 1.44]]
   
   - process: qqHH_CV_m0p962_C2V_0p959_kl_m1p43_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_m0p962_C2V_0p959_C3_m1p43
     is_signal: true
     scale: 0.0011275 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [-1.43, 0.959]
+    param_values: [[-1.43, 0.959]]
   
   - process: qqHH_CV_m1p21_C2V_1p94_kl_m0p94_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_m1p21_C2V_1p94_C3_m0p94
     is_signal: true
     scale: 0.0037987 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [-0.94, 1.94]
+    param_values: [[-0.94, 1.94]]
   
   - process: qqHH_CV_m1p60_C2V_2p72_kl_m1p36_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_m1p60_C2V_2p72_C3_m1p36
     is_signal: true
     scale: 0.0117008 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [-1.36, 2.72]
+    param_values: [[-1.36, 2.72]]
   
   - process: qqHH_CV_m1p83_C2V_3p57_kl_m3p39_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_m1p83_C2V_3p57_C3_m3p39
     is_signal: true
     scale: 0.0168528 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [-3.39, 3.57]
+    param_values: [[-3.39, 3.57]]
   
   - process: qqHH_CV_m2p12_C2V_3p87_kl_m5p96_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_m2p12_C2V_3p87_C3_m5p96
     is_signal: true
     scale: 0.6800842 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [-5.96, 3.87]
+    param_values: [[-5.96, 3.87]]
   
   - process: qqHH_CV_1_C2V_0_kl_1_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_1_C2V_0_C3_1
     is_signal: true
     scale: 0.0296772 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [1.0, 0.0]
+    param_values: [[1.0, 0.0]]
   
   - process: qqHH_CV_1_C2V_1_kl_1_hbbhtt
     hist_name: VBFHHto2B2Tau_CV_1_C2V_1_C3_1
     is_signal: true
     scale: 0.0019292 * 2 * 6.272E-02 * 5.824E-01
-    param_values: [1.0, 1.0]
+    param_values: [[1.0, 1.0]]
   
   # Main background
   - process: TT

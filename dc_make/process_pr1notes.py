@@ -78,7 +78,7 @@ class Process:
     if type(param_values) != list or len(param_values) == 0:
       raise RuntimeError("Invalid parameter values")
     
-    # Check if param_values is a list of lists (multiple parameter points) or a single parameter point
+    # change:Check if param_values is a list of lists (multiple parameter points) or a single parameter point
     if len(param_values) > 0 and type(param_values[0]) == list:
       # Multiple parameter points: [[1.0, 1.0], [2.45, 1.0], ...]
       # yumeng: Multiple parameter sets: [[1.0, 1.0], [2.45, 1.0], ...], will replace $ in base_name
